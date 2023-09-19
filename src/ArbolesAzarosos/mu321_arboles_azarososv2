@@ -1,26 +1,20 @@
-# Clean up memory
-rm(list = ls())
-gc()
+# limpio la memoria
+rm(list = ls()) # Borro todos los objetos
+gc() # Garbage Collection
 
-# Load required libraries
 require("data.table")
 require("rpart")
 
 # Parameters for the experiment
 PARAM <- list()
 PARAM$experimento <- 3210
-
-# Set the random seed
-PARAM$semilla <- 100057
+PARAM$semilla <- 102191
 
 # Define hyperparameters to test
 cp_values <- c(-1, -1, -1, -1, -1, -1, -1)
 minsplit_values <- c(50, 100, 250, 500, 750, 750, 1000)
 minbucket_values <- c(5, 20, 20, 10, 5, 100, 20)
 maxdepth_values <- c(8, 14, 10, 6, 14, 8, 6)
-
-# Define the list of values for the number of trees in the ensemble
-num_trees_list <- c(1, 5, 10, 50, 100, 200, 500)
 
 # Create a matrix of hyperparameters to iterate through
 hyperparameters <- data.frame(
@@ -30,98 +24,91 @@ hyperparameters <- data.frame(
   maxdepth = maxdepth_values
 )
 
-# Initialize a counter for ensemble number
-ensemble_counter <- 1
+# Other parameters
+PARAM$feature_fraction <- 0.5
+PARAM$num_trees_max <- 500
 
-# Loop through each combination of hyperparameters
-for (i in 1:nrow(hyperparameters)) {
-  # Set rpart parameters based on the current hyperparameters
+# Set the working directory
+setwd("~/buckets/b1/") # Establezco el Working Directory
+
+# Load the dataset
+dataset <- fread("./datasets/dataset_pequeno.csv")
+
+# Create the experiment folder
+dir.create("./exp/", showWarnings = FALSE)
+carpeta_experimento <- paste0("./exp/KA", PARAM$experimento, "/")
+dir.create(paste0("./exp/KA", PARAM$experimento, "/"),
+  showWarnings = FALSE
+)
+
+setwd(carpeta_experimento)
+
+# Sizes of ensemble to save to disk
+grabar <- c(1, 5, 10, 50, 100, 200, 500)
+
+# Define training and application datasets
+dtrain <- dataset[foto_mes == 202107]
+dapply <- dataset[foto_mes == 202109]
+dapply[, prob_acumulada := 0]
+
+# Fields for prediction
+campos_buenos <- copy(setdiff(colnames(dtrain), c("clase_ternaria")))
+
+# Iterate through hyperparameters
+for (param_row in 1:nrow(hyperparameters)) {
+  # Set hyperparameters for this iteration
   PARAM$rpart_param <- list(
-    "cp" = hyperparameters$cp[i],
-    "minsplit" = hyperparameters$minsplit[i],
-    "minbucket" = hyperparameters$minbucket[i],
-    "maxdepth" = hyperparameters$maxdepth[i]
+    "cp" = hyperparameters$cp[param_row],
+    "minsplit" = hyperparameters$minsplit[param_row],
+    "minbucket" = hyperparameters$minbucket[param_row],
+    "maxdepth" = hyperparameters$maxdepth[param_row]
   )
+  
+  # Generate model outputs
+  set.seed(PARAM$semilla) # Establezco la semilla aleatoria
 
-  # Loop through each value in the num_trees_list
-  for (num_trees in num_trees_list) {
-    # Set the number of trees in the ensemble
-    PARAM$num_trees_max <- num_trees
+  for (arbolito in 1:PARAM$num_trees_max) {
+    qty_campos_a_utilizar <- as.integer(length(campos_buenos) * PARAM$feature_fraction)
 
-    # Change the working directory if needed
-    setwd("~/buckets/b1/")
+    campos_random <- sample(campos_buenos, qty_campos_a_utilizar)
 
-    # Load the dataset
-    dataset <- fread("./datasets/dataset_pequeno.csv")
+    # Convert vector to a string with elements separated by "+"
+    campos_random <- paste(campos_random, collapse = " + ")
 
-    # Create a folder for the experiment
-    dir.create(paste0("./exp/KA", PARAM$experimento, "/"), showWarnings = FALSE)
-    carpeta_experimento <- paste0("./exp/KA", PARAM$experimento, "/")
-    dir.create(carpeta_experimento, showWarnings = FALSE)
-    setwd(carpeta_experimento)
+    # Build the formula for rpart
+    formulita <- paste0("clase_ternaria ~ ", campos_random)
 
-    # Sizes of ensemble to save to disk
-    grabar <- c(1, 5, 10, 50, 100, 200, 500)
+    # Generate the decision tree model
+    modelo <- rpart(formulita,
+      data = dtrain,
+      xval = 0,
+      control = PARAM$rpart_param
+    )
 
-    # Define training and application datasets
-    dtrain <- dataset[foto_mes == 202107]
-    dapply <- dataset[foto_mes == 202109]
+    # Apply the model to data without class
+    prediccion <- predict(modelo, dapply, type = "prob")
 
-    # Initialize probability accumulation
-    dapply[, prob_acumulada := 0]
+    dapply[, prob_acumulada := prob_acumulada + prediccion[, "BAJA+2"]]
 
-    # Set the fields to use for prediction
-    campos_buenos <- copy(setdiff(colnames(dtrain), c("clase_ternaria")))
-        # Generate the outputs
-    set.seed(PARAM$semilla)
+    if (arbolito %in% grabar) {
+      # Generate the Kaggle submission
+      umbral_corte <- (1 / 40) * arbolito
+      entrega <- as.data.table(list(
+        "numero_de_cliente" = dapply[, numero_de_cliente],
+        "Predicted" = as.numeric(dapply[, prob_acumulada] > umbral_corte)
+      )) # Generate the output
 
-    for (arbolito in 1:PARAM$num_trees_max) {
-      qty_campos_a_utilizar <- as.integer(length(campos_buenos) * PARAM$feature_fraction)
-
-      # Ensure qty_campos_a_utilizar is within the valid range
-      qty_campos_a_utilizar <- min(qty_campos_a_utilizar, length(campos_buenos))
-
-      campos_random <- sample(campos_buenos, qty_campos_a_utilizar)
-      campos_random <- paste(campos_random, collapse = " + ")
-      formulita <- paste0("clase_ternaria ~ ", campos_random)
-
-      modelo <- rpart(formulita,
-        data = dtrain,
-        xval = 0,
-        control = PARAM$rpart_param
+      nom_arch <- paste0(
+        "KA", PARAM$experimento, "_",
+        sprintf("%.3d", arbolito), # to have leading zeros
+        ".csv"
+      )
+      fwrite(entrega,
+        file = nom_arch,
+        sep = ","
       )
 
-      prediccion <- predict(modelo, dapply, type = "prob")
-
-      dapply[, prob_acumulada := prob_acumulada + prediccion[, "BAJA+2"]]
-
-      if (arbolito %in% grabar) {
-        umbral_corte <- (1 / 40) * arbolito
-        entrega <- as.data.table(list(
-          "numero_de_cliente" = dapply[, numero_de_cliente],
-          "Predicted" = as.numeric(dapply[, prob_acumulada] > umbral_corte)
-        ))
-
-        # Create a string representation of the current hyperparameters
-        hyperparam_string <- paste("cp", hyperparameters$cp[i], "minsplit", hyperparameters$minsplit[i], "minbucket", hyperparameters$minbucket[i], "maxdepth", hyperparameters$maxdepth[i], sep = "_")
-
-        # Output file name includes ensemble number, hyperparameters, and number of trees
-        nom_arch <- paste0(
-          "KA", PARAM$experimento, "_ensemble", ensemble_counter, "_", hyperparam_string, "_trees", num_trees, "_",
-          sprintf("%.3d", arbolito), # for leading zeros
-          ".csv"
-        )
-        fwrite(entrega,
-          file = nom_arch,
-          sep = ","
-        )
-
-        cat(arbolito, " ")
-      }
+      cat(arbolito, " ")
     }
-
-    # Increment the ensemble_counter for the next iteration
-    ensemble_counter <- ensemble_counter + 1
   }
 }
-
