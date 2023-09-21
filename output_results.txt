@@ -1,0 +1,1 @@
+max_depth	min_split	ganancia_promedio
