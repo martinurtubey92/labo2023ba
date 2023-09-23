@@ -35,9 +35,9 @@ require("lightgbm")
 
 # Parametros del script
 PARAM <- list()
-PARAM$experimento <- "ZZ6610"
-PARAM$exp_input <- "HT6510"
-
+PARAM$experimento <- "ZZ6"
+PARAM$exp_input <- "HT6"
+PARAM$exp_input2<- "TS6"
 # Atencion, que cada modelos se procesa con 5 semillas, ajuste a SUS necesidades
 # Que modelos quiero, segun su posicion en el ranking e la Bayesian Optimizacion, ordenado por ganancia descendente
 PARAM$modelos_rank <- c(1)
@@ -59,6 +59,7 @@ PARAM$home <- "~/buckets/b1/"
 
 OUTPUT <- list()
 
+
 #------------------------------------------------------------------------------
 
 options(error = function() {
@@ -76,6 +77,8 @@ GrabarOutput <- function() {
 # Aqui empieza el programa
 OUTPUT$PARAM <- PARAM
 OUTPUT$time$start <- format(Sys.time(), "%Y%m%d %H%M%S")
+
+
 
 base_dir <- "~/buckets/b1/"
 
@@ -100,11 +103,11 @@ arch_TS <- paste0(base_dir, "exp/", PARAM$exp_input, "/TrainingStrategy.txt")
 TS <- readLines(arch_TS, warn = FALSE)
 
 # leo el dataset donde voy a entrenar el modelo final
-arch_dataset <- paste0(base_dir, "exp/", TS, "/dataset_train_final.csv.gz")
+arch_dataset <- paste0(base_dir, "exp/", PARAM$exp_input2, "/dataset_train_final.csv.gz")
 dataset <- fread(arch_dataset)
 
 # leo el dataset donde voy a aplicar el modelo final
-arch_future <- paste0(base_dir, "exp/", TS, "/dataset_future.csv.gz")
+arch_future <- paste0(base_dir, "exp/", PARAM$exp_input2, "/dataset_future.csv.gz")
 dfuture <- fread(arch_future)
 
 # logical que me indica si los datos de future tienen la clase con valores,
