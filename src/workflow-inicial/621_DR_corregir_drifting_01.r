@@ -250,8 +250,8 @@ drift_estandarizar <- function(campos_drift) {
   }
 }
 #------------------------------------------------------------------------------
-combinar_ajuste_estandarizar <- function(campos_drifting) {
-  # Ajustar por inflación
+# Combine drift_deflacion and drift_estandarizar into a single function
+combinar_ajuste_estandarizar <- function(campos_monetarios) {
   vfoto_mes <- c(
     201901, 201902, 201903, 201904, 201905, 201906,
     201907, 201908, 201909, 201910, 201911, 201912,
@@ -260,7 +260,7 @@ combinar_ajuste_estandarizar <- function(campos_drifting) {
     202101, 202102, 202103, 202104, 202105, 202106,
     202107, 202108, 202109
   )
-
+  
   vIPC <- c(
     1.9903030878, 1.9174403544, 1.8296186587,
     1.7728862972, 1.7212488323, 1.6776304408,
@@ -274,78 +274,79 @@ combinar_ajuste_estandarizar <- function(campos_drifting) {
     0.8532444140, 0.8251880213, 0.8003763543,
     0.7763107219, 0.7566381305, 0.7289384687
   )
-
+  
   tb_IPC <- data.table(
     "foto_mes" = vfoto_mes,
     "IPC" = vIPC
   )
-
-  campos_drifting <- data.table(campos_drifting)
-  campos_drifting <- campos_drifting[tb_IPC,
-    on = c(foto_mes = "foto_mes"),
-    (campos_drifting) := .SD * i.IPC,
-    .SDcols = campos_drifting
+  
+  # Create a new dataset with inflation-adjusted values
+  dataset <- dataset[tb_IPC,
+                     on = c("foto_mes"),
+                     (campos_monetarios) := .SD * i.IPC,
+                     .SDcols = campos_monetarios
   ]
   
-  # Estandarizar campos ajustados
-  for (campo in names(campos_drifting)) {
-    campos_drifting[, paste0(campo, "_normal") := 
-      (get(campo) - mean(get(campo), na.rm=TRUE)) / sd(get(campo), na.rm=TRUE)]
-    campos_drifting[, (campo) := NULL]
+  # Apply rank transformation to the inflation-adjusted dataset
+  for (campo in campos_monetarios) {
+    cat(campo, " ")
+    dataset[, paste0(campo, "_rank") :=
+              (frank(get(campo), ties.method = "random") - 1) / (.N - 1),
+            by = foto_mes]
   }
   
-  return(campos_drifting)
+  return(dataset)
 }
-#----------------------------------------------------------------------------
-combinar_ajuste_rank <- function(campos_drifting) {
-  # Ajustar por inflación
-  vfoto_mes <- c(
-    201901, 201902, 201903, 201904, 201905, 201906,
-    201907, 201908, 201909, 201910, 201911, 201912,
-    202001, 202002, 202003, 202004, 202005, 202006,
-    202007, 202008, 202009, 202010, 202011, 202012,
-    202101, 202102, 202103, 202104, 202105, 202106,
-    202107, 202108, 202109
-  )
-
-  vIPC <- c(
-    1.9903030878, 1.9174403544, 1.8296186587,
-    1.7728862972, 1.7212488323, 1.6776304408,
-    1.6431248196, 1.5814483345, 1.4947526791,
-    1.4484037589, 1.3913580777, 1.3404220402,
-    1.3154288912, 1.2921698342, 1.2472681797,
-    1.2300475145, 1.2118694724, 1.1881073259,
-    1.1693969743, 1.1375456949, 1.1065619600,
-    1.0681100000, 1.0370000000, 1.0000000000,
-    0.9680542110, 0.9344152616, 0.8882274350,
-    0.8532444140, 0.8251880213, 0.8003763543,
-    0.7763107219, 0.7566381305, 0.7289384687
-  )
-
-  tb_IPC <- data.table(
-    "foto_mes" = vfoto_mes,
-    "IPC" = vIPC
-  )
-
-  campos_drifting <- data.table(campos_drifting)
-  campos_drifting <- campos_drifting[tb_IPC,
-    on = c(foto_mes = "foto_mes"),
-    (campos_drifting) := .SD * i.IPC,
-    .SDcols = campos_drifting
-  ]
-  
-  # Aplicar rank simple a los campos ajustados
-  for (campo in names(campos_drifting)) {
-    campos_drifting[, paste0(campo, "_rank") :=
-      (frank(get(campo), ties.method = "random") - 1) / (.N - 1), by = foto_mes]
-    campos_drifting[, (campo) := NULL]
-  }
-  
-  return(campos_drifting)
-}
-
-
 #------------------------------------------------------------------------------
+combinar_ajuste_rank <- function(campos_monetarios) {
+  vfoto_mes <- c(
+    201901, 201902, 201903, 201904, 201905, 201906,
+    201907, 201908, 201909, 201910, 201911, 201912,
+    202001, 202002, 202003, 202004, 202005, 202006,
+    202007, 202008, 202009, 202010, 202011, 202012,
+    202101, 202102, 202103, 202104, 202105, 202106,
+    202107, 202108, 202109
+  )
+  
+  vIPC <- c(
+    1.9903030878, 1.9174403544, 1.8296186587,
+    1.7728862972, 1.7212488323, 1.6776304408,
+    1.6431248196, 1.5814483345, 1.4947526791,
+    1.4484037589, 1.3913580777, 1.3404220402,
+    1.3154288912, 1.2921698342, 1.2472681797,
+    1.2300475145, 1.2118694724, 1.1881073259,
+    1.1693969743, 1.1375456949, 1.1065619600,
+    1.0681100000, 1.0370000000, 1.0000000000,
+    0.9680542110, 0.9344152616, 0.8882274350,
+    0.8532444140, 0.8251880213, 0.8003763543,
+    0.7763107219, 0.7566381305, 0.7289384687
+  )
+  
+  tb_IPC <- data.table(
+    "foto_mes" = vfoto_mes,
+    "IPC" = vIPC
+  )
+  
+  # Create a new dataset with inflation-adjusted values
+  dataset <- dataset[tb_IPC,
+                     on = c("foto_mes"),
+                     (campos_monetarios) := .SD * i.IPC,
+                     .SDcols = campos_monetarios
+  ]
+  
+  # Apply rank transformation to the inflation-adjusted dataset
+  for (campo in campos_monetarios) {
+    cat(campo, " ")
+    dataset[, paste0(campo, "_rank") :=
+              (frank(get(campo), ties.method = "random") - 1) / (.N - 1),
+            by = foto_mes]
+  }
+  
+  return(dataset)
+}
+
+
+#-------------------------------------------------------------------------------
 # Aqui comienza el programa
 OUTPUT$PARAM <- PARAM
 OUTPUT$time$start <- format(Sys.time(), "%Y%m%d %H%M%S")
