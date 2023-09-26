@@ -11,7 +11,7 @@ require("yaml")
 
 # Parametros del script
 PARAM <- list()
-PARAM$experimento <- "DR8"
+PARAM$experimento <- "DR9"
 
 PARAM$exp_input <- "CA6"
 
@@ -20,7 +20,7 @@ PARAM$variables_intrames <- TRUE # atencion esto esta en TRUE
 # valores posibles
 #  "ninguno", "rank_simple", "rank_cero_fijo", "deflacion", "estandarizar",
 #"combinar_ajuste_estandarizar", "combinar_ajuste_rank"
-PARAM$metodo <- "combinar_ajuste_estandarizar"
+PARAM$metodo <- "combinar_ajuste_rank"
 
 PARAM$home <- "~/buckets/b1/"
 # FIN Parametros del script
