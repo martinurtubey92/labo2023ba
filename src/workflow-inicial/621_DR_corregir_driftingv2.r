@@ -13,7 +13,7 @@ require("yaml")
 PARAM <- list()
 PARAM$experimento <- "DR13"
 
-PARAM$exp_input <- "CA612"
+PARAM$exp_input <- "CA12"
 
 PARAM$variables_intrames <- TRUE # VARIABLE DE CORTE INTERESANTE PROBAR CON FALSE Y DEFLACION A PRIORI NO SUMA NADA, AHORA PRUEBO CON TRUE 
 
